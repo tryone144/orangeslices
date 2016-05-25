@@ -18,5 +18,5 @@ if __name__ == '__main__':
           url="http://github.com/tryone144/orangeslices",
           author="Bernd Busse",
           license="MIT",
-          packages=["orangeslices"],
+          packages=["orangeslices", "orangeslices.slices"],
           zip_safe=False)

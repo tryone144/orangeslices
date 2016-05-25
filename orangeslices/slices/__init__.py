@@ -5,7 +5,7 @@
 #
 
 """Not yet implemented"""
-from .orange import Orange
-from . import slices
 
-__all__ = ['orange', 'slices']
+from .slice import Slice
+
+__all__ = ['slice']
