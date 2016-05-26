@@ -3,7 +3,7 @@
 # © 2016 Bernd Busse, The MIT License
 #
 
-.PHONY: all build install clean
+.PHONY: all build install clean dev
 
 all: build
 
@@ -15,3 +15,9 @@ install:
 
 clean:
 	./setup.py clean
+
+dev:
+	./setup.py build
+	sudo ./setup.py develop
+	@echo "Run Test Example..."
+	./examples/default.py
