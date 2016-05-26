@@ -6,6 +6,7 @@
 
 """Not yet implemented"""
 
+from .commands import Command
 from .clock import Clock
 from .separator import Separator
 

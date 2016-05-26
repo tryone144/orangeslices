@@ -13,4 +13,4 @@ class Separator(slice.Slice):
         self._container.text = char * width
 
     def update(self):
-        return
+        pass
