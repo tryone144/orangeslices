@@ -135,7 +135,7 @@ class IntervalSlice(Slice):
         super().__init__(**kwargs)
         if not isinstance(interval, int):
             raise ValueError(
-                    "kwargs 'interval' must be of type int not {}"
+                    "'interval' must be of type int not {}"
                     .format(interval.__class__.__name__))
 
         self.__timeout_id = GLib.timeout_add_seconds(interval, self.timeout)
