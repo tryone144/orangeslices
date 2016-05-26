@@ -6,6 +6,8 @@
 
 from enum import Enum
 from gi.repository import GLib
+import shlex
+import subprocess
 import sys
 
 from . import slice
@@ -15,6 +17,9 @@ AL_CENTER = slice.ALIGN_CENTER
 AL_RIGHT = slice.ALIGN_RIGHT
 
 FMT_COLOR = "%{{F{fg:s} B{bg:s} U{hl:s}}}"
+
+LEMONBAR_EXEC = "/usr/bin/lemonbar"
+LEMONBAR_ARGS = ""
 
 
 class OrangeStyle(Enum):
@@ -26,14 +31,16 @@ POWERLINE = OrangeStyle.STYLE_POWERLINE
 
 
 class Orange(object):
-    def __init__(self, style=BLOCKS):
+    def __init__(self, style=BLOCKS, lemonbar_exec=LEMONBAR_EXEC,
+                 lemonbar_args=LEMONBAR_ARGS):
         super().__init__()
-        self._outs = sys.stdout
-        self._errs = sys.stderr
-
         self._slices = []
-        self._timeouts = []
 
+        self.__bar_cmd = [lemonbar_exec] + shlex.split(lemonbar_args)
+        self.__bar_exec = None
+        self.__outstream = sys.stdout
+
+        self.__started = False
         self.__loop = GLib.MainLoop()
         GLib.threads_init()
 
@@ -73,20 +80,23 @@ class Orange(object):
         right = ''.join(output[AL_RIGHT])
 
         if len(left) > 0:
-            self._outs.write("%{l}")
-            self._outs.write(left)
+            self.__write("%{l}")
+            self.__write(left)
         if len(center) > 0:
-            self._outs.write("%{c}")
-            self._outs.write(center)
+            self.__write("%{c}")
+            self.__write(center)
         if len(right) > 0:
-            self._outs.write("%{r}")
-            self._outs.write(right)
+            self.__write("%{r}")
+            self.__write(right)
 
-        self._outs.write(FMT_COLOR.format(fg='-', bg='-', hl='-'))
-        self._outs.write('\n')
-        self._outs.flush()
+        self.__write(FMT_COLOR.format(fg='-', bg='-', hl='-'))
+        self.__write('\n')
+        self.__outstream.flush()
 
         return True
+
+    def __write(self, string):
+        self.__outstream.write(string.encode('utf-8'))
 
     def add(self, sl):
         self._slices.append(sl)
@@ -94,16 +104,38 @@ class Orange(object):
         sl.update()
 
     def update(self):
+        if self.__bar_exec.poll() is not None:
+            sys.stderr.write("lemonbar terminated, quitting...\n")
+            sys.stderr.flush()
+            self.__loop.quit()
+            return
+
         self.__draw()
 
     def run(self):
+        if self.__started:
+            raise RuntimeError("Orange already started.")
+
+        self.__started = True
+        self.__bar_exec = subprocess.Popen(self.__bar_cmd,
+                                           stdin=subprocess.PIPE,
+                                           stdout=subprocess.DEVNULL,
+                                           stderr=sys.stderr)
+
+        self.__outstream = self.__bar_exec.stdin
         self.update()
 
         try:
             self.__loop.run()
         except KeyboardInterrupt:
             self.__loop.quit()
-            self._errs.write("Received SIGINT\n")
-            self._errs.flush()
+            sys.stderr.write("Received SIGINT, quitting...\n")
+            sys.stderr.flush()
+
+        self.__bar_exec.terminate()
+        try:
+            self.__bar_exec.wait(10)
+        except subprocess.TimeoutExpired:
+            self.__bar_exec.kill()
 
         return
