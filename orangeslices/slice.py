@@ -88,7 +88,7 @@ class Slice(object):
                                          SliceColor(color_hl),
                                          align, False,
                                          underline, overline)
-        self.manager = None
+        self._manager = None
 
     @property
     def text(self):
@@ -125,6 +125,10 @@ class Slice(object):
     def _update_text(self, text):
         self._container.text = ' ' + text + ' '
 
+    def initialize(self, manager):
+        self._manager = manager
+        self.update()
+
     def update(self):
         raise NotImplementedError("update() needs to be implemented by {}"
                                   .format(self.__class__.__name__))
@@ -137,12 +141,28 @@ class IntervalSlice(Slice):
             raise ValueError(
                     "'interval' must be of type int not {}"
                     .format(interval.__class__.__name__))
+        self.__interval = interval
 
-        self.__timeout_id = GLib.timeout_add_seconds(interval, self.timeout)
+    def initialize(self, manager):
+        self.__timeout_id = GLib.timeout_add_seconds(self.__interval,
+                                                     self.timeout)
+        super().initialize(manager)
 
     def timeout(self):
         self.update()
-        if self.manager is not None:
-            self.manager.update()
+        if self._manager is not None:
+            self._manager.update()
+
+        return True
+
+
+class SignaleSlice(Slice):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    def signal(self, *args, **kwargs):
+        self.update()
+        if self._manager is not None:
+            self._manager.update()
 
         return True

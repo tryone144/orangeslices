@@ -96,15 +96,15 @@ class Orange(object):
         return True
 
     def __write(self, string):
-        self.__outstream.write(string.encode('utf-8'))
+        self.__outstream.write(string)
+        sys.stdout.write(string)
 
     def add(self, sl):
         self._slices.append(sl)
-        sl.manager = self
-        sl.update()
+        sl.initialize(self)
 
     def update(self):
-        if self.__bar_exec.poll() is not None:
+        if self.__bar_exec is not None and self.__bar_exec.poll() is not None:
             sys.stderr.write("lemonbar terminated, quitting...\n")
             sys.stderr.flush()
             self.__loop.quit()
@@ -120,7 +120,8 @@ class Orange(object):
         self.__bar_exec = subprocess.Popen(self.__bar_cmd,
                                            stdin=subprocess.PIPE,
                                            stdout=subprocess.DEVNULL,
-                                           stderr=sys.stderr)
+                                           stderr=sys.stderr,
+                                           universal_newlines=True)
 
         self.__outstream = self.__bar_exec.stdin
         self.update()
