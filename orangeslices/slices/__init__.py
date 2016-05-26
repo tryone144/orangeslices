@@ -6,6 +6,7 @@
 
 """Not yet implemented"""
 
-from .slice import Slice
+from .clock import Clock
+from .separator import Separator
 
-__all__ = ['slice']
+__all__ = ['clock', 'separator']
