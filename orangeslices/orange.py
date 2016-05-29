@@ -51,7 +51,10 @@ class Orange(object):
         for cut in sl.cuts:
             separator = ""
             if not first_cut:
-                separator = "|"
+                sep_color = FMT_COLOR.format(fg=slice.COLOR_WHITE,
+                                             bg=slice.COLOR_BLACK,
+                                             hl='-')
+                separator = sep_color + "|"
             else:
                 first_cut = False
 

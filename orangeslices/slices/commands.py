@@ -65,6 +65,7 @@ class Command(slice.Slice):
                       executable.split('/')[-1], "")
 
     def initialize(self, manager):
+        super().initialize(manager)
         if self.__runtype == PERIODIC:
             self.__timeout_id = GLib.timeout_add_seconds(self.__interval,
                                                          self.timeout)
@@ -75,8 +76,6 @@ class Command(slice.Slice):
                                  name="cmd-" + self.__cmd[0].split('/')[-1],
                                  kwargs=arguments, daemon=True)
             self.__exec.start()
-
-        super().initialize(manager)
 
     def timeout(self):
         if self.__runtype == PERIODIC:
@@ -91,6 +90,7 @@ class Command(slice.Slice):
             self._update_text(line.rstrip())
             if not self.__first and self._manager is not None:
                 self._manager.update()
+            self.__first = False
 
             return True
 
@@ -105,7 +105,7 @@ class Command(slice.Slice):
 
     def _update_text(self, text):
         if self.__maxlen and len(text) > self.__maxlen:
-            super()._update_cut(text[:self.__maxlen].rstrip() +
-                                self.__ellipsis)
+            self._update_cut(text[:self.__maxlen].rstrip() +
+                             self.__ellipsis)
         else:
-            super()._update_cut(text)
+            self._update_cut(text)

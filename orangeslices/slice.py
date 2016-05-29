@@ -64,7 +64,7 @@ ALIGN_RIGHT = SliceAlignment.ALIGN_RIGHT
 
 
 class CutContainer(object):
-    def __init__(self, id, text, color_fg, color_bg, color_hl,
+    def __init__(self, uid, text, color_fg, color_bg, color_hl,
                  urgent, underline, overline):
         super().__init__()
         self.text = text
@@ -75,11 +75,11 @@ class CutContainer(object):
         self.underline = underline
         self.overline = overline
 
-        self.__id = id
+        self.__uid = uid
 
-        @property
-        def id(self):
-            return self.__id
+    @property
+    def uid(self):
+        return self.__uid
 
 
 class Slice(object):
@@ -103,7 +103,7 @@ class Slice(object):
     def cuts(self):
         return self._cuts
 
-    def _add_cut(self, id, text, fg=None, bg=None, hl=None,
+    def _add_cut(self, uid, text, fg=None, bg=None, hl=None,
                  under=False, over=False, index=None):
         if index is None:
             index = len(self._cuts)
@@ -115,18 +115,20 @@ class Slice(object):
             hl = self._color_hl
 
         text = " " + text.strip() + " "
-        cut = CutContainer(id, text, fg, bg, hl, False, under, over)
+        cut = CutContainer(uid, text, fg, bg, hl, False, under, over)
         self._cuts.insert(index, cut)
 
+    def _get_cut(self, uid):
+        for c in self._cuts:
+            if c.uid == uid:
+                return c
+
+        raise IndexError("cannot find cut with uid '{}'"
+                         .format(uid))
+
     def _del_cut(self, **kwargs):
-        if 'id' in kwargs:
-            for c in self._cuts:
-                if c.id == kwargs['id']:
-                    self._cuts.remove(c)
-                    break
-            else:
-                raise IndexError("cannot find cut with id '{}'"
-                                 .format(kwargs['id']))
+        if 'uid' in kwargs:
+            self._cuts.remove(self._get_cut(kwargs['uid']))
         else:
             index = len(self._cuts) - 1
             if 'index' in kwargs and isinstance(kwargs['index'], int):
@@ -134,14 +136,9 @@ class Slice(object):
             self._cuts.pop(index)
 
     def _update_cut(self, text, **kwargs):
-        if 'id' in kwargs:
-            for c in self._cuts:
-                if c.id == kwargs['id']:
-                    c.text = ' ' + text + ' '
-                    break
-            else:
-                raise IndexError("cannot find cut with id '{}'"
-                                 .format(kwargs['id']))
+        if 'uid' in kwargs:
+            c = self._get_cut(kwargs['uid'])
+            c.text = ' ' + text + ' '
         else:
             index = 0
             if 'index' in kwargs and isinstance(kwargs['index'], int):
