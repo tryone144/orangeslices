@@ -9,9 +9,8 @@ import orangeslices as osl
 
 def main():
     # Create Orange object: handles all slices and runs lemonbar
-    orange = osl.Orange()
-
-    # TODO: Set lemonbar options
+    args = "-f 'Source Code Pro for Powerline-9' -f 'Ionicons-12'"
+    orange = osl.Orange(lemonbar_args=args)
 
     # Clock slice: display current time
     clock = osl.slices.Clock(color_fg="#FF02F3DD",
@@ -21,7 +20,7 @@ def main():
     separator = osl.slices.Separator('|')
 
     # i3wm slice: display current workspace status
-    i3 = osl.slices.I3(strip_title=False)
+    i3 = osl.slices.I3(strip_title=True)
 
     # Command slice: display output of executable
     command = osl.slices.Command(executable="date",
