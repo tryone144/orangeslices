@@ -6,8 +6,9 @@
 
 """Not yet implemented"""
 
-from .commands import Command
 from .clock import Clock
+from .commands import Command
+from .i3wm import I3
 from .separator import Separator
 
-__all__ = ['clock', 'separator']
+__all__ = ['clock', 'commands', 'i3wm', 'separator']

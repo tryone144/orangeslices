@@ -20,6 +20,9 @@ def main():
     # Separator slice: print separator chars
     separator = osl.slices.Separator('|')
 
+    # i3wm slice: display current workspace status
+    i3 = osl.slices.I3(strip_title=False)
+
     # Command slice: display output of executable
     command = osl.slices.Command(executable="date",
                                  color_bg="#944B",
@@ -30,6 +33,7 @@ def main():
     # Add slices to Orange
     orange.add(clock)
     orange.add(separator)
+    orange.add(i3)
     orange.add(command)
 
     # Start lemonbar and display output of slices
