@@ -63,18 +63,23 @@ ALIGN_CENTER = SliceAlignment.ALIGN_CENTER
 ALIGN_RIGHT = SliceAlignment.ALIGN_RIGHT
 
 
-class SliceContainer(object):
-    def __init__(self, text, color_fg, color_bg, color_hl,
-                 align, urgent, underline, overline):
+class CutContainer(object):
+    def __init__(self, id, text, color_fg, color_bg, color_hl,
+                 urgent, underline, overline):
         super().__init__()
         self.text = text
         self.color_fg = color_fg
         self.color_bg = color_bg
         self.color_hl = color_hl
-        self.align = align
         self.urgent = urgent
         self.underline = underline
         self.overline = overline
+
+        self.__id = id
+
+        @property
+        def id(self):
+            return self.__id
 
 
 class Slice(object):
@@ -82,48 +87,66 @@ class Slice(object):
                  color_hl=COLOR_WHITE, align=ALIGN_LEFT,
                  overline=False, underline=False):
         super().__init__()
-        self._container = SliceContainer("",
-                                         SliceColor(color_fg),
-                                         SliceColor(color_bg),
-                                         SliceColor(color_hl),
-                                         align, False,
-                                         underline, overline)
+        self._align = align
+        self._color_fg = SliceColor(color_fg)
+        self._color_bg = SliceColor(color_bg)
+        self._color_hl = SliceColor(color_hl)
+
+        self._cuts = []
         self._manager = None
 
     @property
-    def text(self):
-        return self._container.text
-
-    @property
-    def color_fg(self):
-        return self._container.color_fg
-
-    @property
-    def color_bg(self):
-        return self._container.color_bg
-
-    @property
-    def color_hl(self):
-        return self._container.color_hl
-
-    @property
     def align(self):
-        return self._container.align
+        return self._align
 
     @property
-    def urgent(self):
-        return self._container.urgent
+    def cuts(self):
+        return self._cuts
 
-    @property
-    def underline(self):
-        return self._container.underline
+    def _add_cut(self, id, text, fg=None, bg=None, hl=None,
+                 under=False, over=False, index=None):
+        if index is None:
+            index = len(self._cuts)
+        if fg is None:
+            fg = self._color_fg
+        if bg is None:
+            bg = self._color_bg
+        if hl is None:
+            hl = self._color_hl
 
-    @property
-    def overline(self):
-        return self._container.overline
+        text = " " + text.strip() + " "
+        cut = CutContainer(id, text, fg, bg, hl, False, under, over)
+        self._cuts.insert(index, cut)
 
-    def _update_text(self, text):
-        self._container.text = ' ' + text + ' '
+    def _del_cut(self, **kwargs):
+        if 'id' in kwargs:
+            for c in self._cuts:
+                if c.id == kwargs['id']:
+                    self._cuts.remove(c)
+                    break
+            else:
+                raise IndexError("cannot find cut with id '{}'"
+                                 .format(kwargs['id']))
+        else:
+            index = len(self._cuts) - 1
+            if 'index' in kwargs and isinstance(kwargs['index'], int):
+                index = kwargs['index']
+            self._cuts.pop(index)
+
+    def _update_cut(self, text, **kwargs):
+        if 'id' in kwargs:
+            for c in self._cuts:
+                if c.id == kwargs['id']:
+                    c.text = ' ' + text + ' '
+                    break
+            else:
+                raise IndexError("cannot find cut with id '{}'"
+                                 .format(kwargs['id']))
+        else:
+            index = 0
+            if 'index' in kwargs and isinstance(kwargs['index'], int):
+                index = kwargs['index']
+            self._cuts[index].text = ' ' + text + ' '
 
     def initialize(self, manager):
         self._manager = manager

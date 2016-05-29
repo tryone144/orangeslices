@@ -45,27 +45,39 @@ class Orange(object):
         GLib.threads_init()
 
     def __render(self, sl):
-        pre_attr = ""
-        post_attr = ""
+        slice_render = ""
+        first_cut = True
 
-        if sl.urgent:
-            pre_color = FMT_COLOR.format(fg=slice.COLOR_WHITE,
-                                         bg=slice.COLOR_RED,
-                                         hl='-')
-        else:
-            pre_color = FMT_COLOR.format(fg=sl.color_fg,
-                                         bg=sl.color_bg,
-                                         hl=sl.color_hl)
-            if sl.underline:
-                pre_attr += "%{+u}"
-                post_attr += "%{-u}"
-            if sl.overline:
-                pre_attr += "%{+o}"
-                post_attr += "%{-o}"
+        for cut in sl.cuts:
+            separator = ""
+            if not first_cut:
+                separator = "|"
+            else:
+                first_cut = False
 
-        pre = pre_color + pre_attr
-        post = post_attr
-        return pre + sl.text + post
+            pre_attr = ""
+            post_attr = ""
+
+            if cut.urgent:
+                pre_color = FMT_COLOR.format(fg=slice.COLOR_WHITE,
+                                             bg=slice.COLOR_RED,
+                                             hl='-')
+            else:
+                pre_color = FMT_COLOR.format(fg=cut.color_fg,
+                                             bg=cut.color_bg,
+                                             hl=cut.color_hl)
+                if cut.underline:
+                    pre_attr += "%{+u}"
+                    post_attr += "%{-u}"
+                if cut.overline:
+                    pre_attr += "%{+o}"
+                    post_attr += "%{-o}"
+
+            pre = pre_color + pre_attr
+            post = post_attr
+            slice_render += separator + pre + cut.text + post
+
+        return slice_render
 
     def __draw(self):
         output = {AL_LEFT: [],
