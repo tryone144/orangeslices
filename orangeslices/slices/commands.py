@@ -11,6 +11,7 @@ import subprocess
 import sys
 import select
 from threading import Thread
+from collections import deque
 
 from orangeslices import slice
 
@@ -27,7 +28,7 @@ PERSISTENT = CommandType.TYPE_PERSISTENT
 
 def popen_background(cmd, callback, on_error):
     try:
-        proc_stderr = ""
+        proc_stderr = deque([], 15)
         proc = subprocess.Popen(cmd, shell=True,
                                 universal_newlines=True,
                                 stdout=subprocess.PIPE,
@@ -47,18 +48,18 @@ def popen_background(cmd, callback, on_error):
                 if event & select.POLLHUP and proc.poll() is None:
                     try:
                         _, stderr = proc.communicate(timeout=5)
-                        proc_stderr += stderr
+                        proc_stderr.append(stderr.rstrip())
                     except subprocess.TimeoutExpired:
                         proc.kill()
                 else:
                     if fd == fn_stdout:
                         callback(proc.stdout.readline().rstrip())
                     elif fd == fn_stderr:
-                        proc_stderr += proc.stderr.readline()
+                        proc_stderr.append(proc.stderr.readline().rstrip())
 
         if proc.returncode != 0:
             raise subprocess.CalledProcessError(proc.returncode, ' '.join(cmd),
-                                                stderr=proc_stderr)
+                                                stderr='\n'.join(proc_stderr))
 
         print("DONE")
     except:
