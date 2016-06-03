@@ -16,7 +16,7 @@ class Clock(slice.IntervalSlice):
         super().__init__(**kwargs)
         self.__timefmt = timefmt
 
-        self._add_cut(self.__class__.__name__, "")
+        self._add_cut(0, "")
 
     def update(self):
-        self._update_cut(time.strftime(self.__timefmt, time.localtime()))
+        self._update_cut(0, time.strftime(self.__timefmt, time.localtime()))

@@ -16,7 +16,12 @@ AL_LEFT = slice.ALIGN_LEFT
 AL_CENTER = slice.ALIGN_CENTER
 AL_RIGHT = slice.ALIGN_RIGHT
 
-FMT_COLOR = "%{{F{fg:s} B{bg:s} U{hl:s}}}"
+COLOR_RESET = "%{F-}%{B-}%{U-}"
+ATTR_RESET = "%{-u}%{-o}"
+
+FMT_COLOR_FG = "%{{F{:s}}}"
+FMT_COLOR_BG = "%{{B{:s}}}"
+FMT_COLOR_HL = "%{{U{:s}}}"
 
 LEMONBAR_EXEC = "/usr/bin/lemonbar"
 LEMONBAR_ARGS = ""
@@ -35,52 +40,32 @@ class Orange(object):
                  lemonbar_args=LEMONBAR_ARGS):
         super().__init__()
         self._slices = []
+        self.is_running = False
 
-        self.__bar_cmd = [lemonbar_exec] + shlex.split(lemonbar_args)
-        self.__bar_exec = None
+        if isinstance(lemonbar_args, str):
+            lemonbar_args = shlex.split(lemonbar_args)
+        self.__bar_cmd = [lemonbar_exec] + lemonbar_args
         self.__outstream = sys.stdout
 
         self.__started = False
+        self.__bar_exec = None
+
         self.__loop = GLib.MainLoop()
         GLib.threads_init()
 
     def __render(self, sl):
-        slice_render = ""
+        slice_output = ""
         first_cut = True
 
-        for cut in sl.cuts:
-            separator = ""
+        for _, cut in sorted(sl.cuts.items()):
             if not first_cut:
-                sep_color = FMT_COLOR.format(fg=slice.COLOR_WHITE,
-                                             bg=slice.COLOR_BLACK,
-                                             hl='-')
-                separator = sep_color + "|"
+                slice_output += "%{F#FFFFFFFF}%{B#FF000000}|"
             else:
                 first_cut = False
 
-            pre_attr = ""
-            post_attr = ""
+            slice_output += cut.formatted()
 
-            if cut.urgent:
-                pre_color = FMT_COLOR.format(fg=slice.COLOR_WHITE,
-                                             bg=slice.COLOR_RED,
-                                             hl='-')
-            else:
-                pre_color = FMT_COLOR.format(fg=cut.color_fg,
-                                             bg=cut.color_bg,
-                                             hl=cut.color_hl)
-                if cut.underline:
-                    pre_attr += "%{+u}"
-                    post_attr += "%{-u}"
-                if cut.overline:
-                    pre_attr += "%{+o}"
-                    post_attr += "%{-o}"
-
-            pre = pre_color + pre_attr
-            post = post_attr
-            slice_render += separator + pre + cut.text + post
-
-        return slice_render
+        return slice_output
 
     def __draw(self):
         output = {AL_LEFT: [],
@@ -104,7 +89,7 @@ class Orange(object):
             self.__write("%{r}")
             self.__write(right)
 
-        self.__write(FMT_COLOR.format(fg='-', bg='-', hl='-'))
+        self.__write(COLOR_RESET + ATTR_RESET)
         self.__write('\n')
         self.__outstream.flush()
 
@@ -115,11 +100,13 @@ class Orange(object):
         sys.stdout.write(string)
 
     def add(self, sl):
+        """add slice to output"""
         self._slices.append(sl)
         sl.initialize(self)
 
     def update(self):
-        if self.__bar_exec is not None and self.__bar_exec.poll() is not None:
+        if (self.__bar_exec is not None and
+                self.__bar_exec.poll() is not None):
             sys.stderr.write("lemonbar terminated, quitting...\n")
             sys.stderr.flush()
             self.__loop.quit()
@@ -128,9 +115,12 @@ class Orange(object):
         self.__draw()
 
     def run(self):
+        """start lemonbar and generate statusline"""
         if self.__started:
             raise RuntimeError("Orange already started.")
 
+        # start lemonbar
+        # TODO: handle lemonbar click actions
         self.__started = True
         self.__bar_exec = subprocess.Popen(self.__bar_cmd,
                                            stdin=subprocess.PIPE,
@@ -139,8 +129,10 @@ class Orange(object):
                                            universal_newlines=True)
 
         self.__outstream = self.__bar_exec.stdin
+        self.is_running = True
         self.update()
 
+        # start event loop
         try:
             self.__loop.run()
         except KeyboardInterrupt:
@@ -148,10 +140,17 @@ class Orange(object):
             sys.stderr.write("Received SIGINT, quitting...\n")
             sys.stderr.flush()
 
-        self.__bar_exec.terminate()
-        try:
-            self.__bar_exec.wait(10)
-        except subprocess.TimeoutExpired:
-            self.__bar_exec.kill()
+        self.__cleanup()
 
-        return
+    def stop(self):
+        self.__loop.quit()
+        self.__cleanup()
+
+    def __cleanup(self):
+        if self.__started and self.is_running:
+            # stop lemonbar
+            self.__bar_exec.terminate()
+            try:
+                self.__bar_exec.wait(10)
+            except subprocess.TimeoutExpired:
+                self.__bar_exec.kill()

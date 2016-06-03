@@ -11,36 +11,40 @@ from time import sleep
 
 from orangeslices import slice
 
-RE_WS_TITLE = re.compile('^\s*([0-9]*)(:)?\s*(.*)?\s*$', re.I)
+RE_WS_TITLE = re.compile('\s*([0-9]*):?\s*(.*)?\s*', re.I)
 
 
-def i3_connection(callback):
-    i3 = i3ipc.Connection()
+def i3_connection(callback, on_error):
+    try:
+        i3 = i3ipc.Connection()
 
-    def restart(i3):
-        try:
-            i3.get_version()
-        except BrokenPipeError:
-            i3 = i3ipc.Connection()
-
-        count = 0
-        while count < 3:
-            count += 1
+        def restart(i3):
             try:
-                i3.main()
-                return
-            except FileNotFoundError:
-                sleep(0.5)
+                i3.get_version()
+            except BrokenPipeError:
+                print("DO I3 RECONNECT: BROKEN PIPE")
+                i3 = i3ipc.Connection()
 
-        raise RuntimeError("cannot (re)connect to i3 ipc socket")
+            count = 0
+            while count < 3:
+                count += 1
+                try:
+                    i3.main()
+                    return
+                except FileNotFoundError:
+                    sleep(0.5)
 
-    def ws_changed(i3, event):
-        callback.signal(event)
+            raise RuntimeError("cannot (re)connect to i3 ipc socket")
 
-    i3.on('ipc-shutdown', restart)
-    i3.on('workspace', ws_changed)
+        def ws_changed(i3, event):
+            callback(event)
 
-    restart(i3)
+        i3.on('workspace', ws_changed)
+        i3.on('ipc-shutdown', restart)
+
+        restart(i3)
+    except:
+        on_error("Error in I3 communication")
 
 
 class I3(slice.Slice):
@@ -48,82 +52,77 @@ class I3(slice.Slice):
                  color_bg_focused=slice.COLOR_WHITE, **kwargs):
         super().__init__(**kwargs)
 
-        self.strip = strip_title
+        self.__strip_title = strip_title
 
         self._color_fg_focused = color_fg_focused
         self._color_bg_focused = color_bg_focused
 
     def initialize(self, manager):
         super().initialize(manager)
+
+        arguments = {'callback': self._signal,
+                     'on_error': self._stop_on_exception}
         self.__conn = Thread(target=i3_connection, name="i3-workspaces",
-                             kwargs={'callback': self}, daemon=True)
+                             kwargs=arguments, daemon=True)
         self.__conn.start()
 
-    def signal(self, event):
-        ws = event.current
-        old_ws = event.old
-        if event.change == 'focus':
-            self._update_ws(ws.name, True)
-            if old_ws is not None:
-                self._update_ws(old_ws.name, False)
-        elif event.change == 'init':
-            self._add_ws(ws.name, ws.num)
-        elif event.change == 'empty':
-            self._del_ws(ws.name)
-        elif event.change == 'urgent':
-            self._update_ws(ws.name, urgent=ws.urgent)
-
-        if self._manager is not None:
-            self._manager.update()
-
-        return True
-
     def update(self):
-        self._cuts.clear()
+        self.cuts.clear()
         i3 = i3ipc.Connection()
         for ws in i3.get_workspaces():
             self._add_ws(ws.name, ws.num, ws.focused)
 
-    def _add_ws(self, name, order, focused=False):
-        _, title = self.__strip_name(name)
+        self.propagate()
+
+    def _signal(self, event):
+        ws = event.current
+        old_ws = event.old
+
+        if event.change == 'focus':
+            self._update_ws(ws.name, ws.num, True)
+            if old_ws is not None:
+                self._update_ws(old_ws.name, old_ws.num, False)
+        elif event.change == 'init':
+            self._add_ws(ws.name, ws.num)
+        elif event.change == 'empty':
+            self._del_ws(ws.name, ws.num)
+        elif event.change == 'urgent':
+            self._update_ws(ws.name, ws.num, urgent=ws.urgent)
+
+        self.propagate()
+
+        return True
+
+    def _add_ws(self, name, number, focused=False):
+        title = self.__strip_name(name)
         color_fg = self._color_fg_focused if focused else self._color_fg
         color_bg = self._color_bg_focused if focused else self._color_bg
 
-        self._add_cut(name, title, fg=color_fg, bg=color_bg, order=order)
+        self._add_cut(name, title, fg=color_fg, bg=color_bg, index=number)
 
-    def _update_ws(self, name, focused=False, urgent=False):
-        _, title = self.__strip_name(name)
+    def _update_ws(self, name, number, focused=False, urgent=False):
+        title = self.__strip_name(name)
 
-        c = self._get_cut(uid=name)
-        if urgent:
-            c.color_fg = slice.COLOR_WHITE
-            c.color_bg = slice.COLOR_RED
-        elif focused:
-            c.color_fg = self._color_fg_focused
-            c.color_bg = self._color_bg_focused
+        if focused:
+            color_fg = self._color_fg_focused
+            color_bg = self._color_bg_focused
         else:
-            c.color_fg = self._color_fg
-            c.color_bg = self._color_bg
+            color_fg = self._color_fg
+            color_bg = self._color_bg
 
-        self._update_cut(title, uid=name)
+        self._update_cut(number, title, color_fg, color_bg, None, urgent)
 
-    def _del_ws(self, name):
-        self._del_cut(uid=name)
+    def _del_ws(self, name, number):
+        self._del_cut(number)
 
     def __strip_name(self, name):
-        match = RE_WS_TITLE.match(name)
-        index = match.group(1)
-        if self.strip:
-            title = match.group(3)
+        if self.__strip_title:
+            match = RE_WS_TITLE.fullmatch(name)
+            index = match.group(1)
+            title = match.group(2)
+            if len(title) == 0:
+                title = index if len(index) > 0 else name.strip()
         else:
             title = name.strip()
 
-        try:
-            index = int(index)
-        except:
-            index = None
-
-        if title == "":
-            title = str(index)
-
-        return index, title
+        return title

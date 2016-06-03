@@ -7,6 +7,8 @@
 from enum import Enum
 from gi.repository import GLib
 import re
+import sys
+import traceback
 
 
 COLOR_FMT = "#{a:s}{r:s}{g:s}{b:s}"
@@ -64,9 +66,15 @@ ALIGN_RIGHT = SliceAlignment.ALIGN_RIGHT
 
 
 class CutContainer(object):
-    def __init__(self, uid, text, order, color_fg, color_bg, color_hl,
+    FMT = "%{{F{fg:s}}}%{{B{bg:s}}}%{{U{hl:s}}}{attren:s}{text:s}{attrdis:s}"
+    HOOKS = ('text', 'color_fg', 'color_bg', 'color_hl',
+             'urgent', 'underline', 'overline')
+
+    def __init__(self, uid, text, color_fg, color_bg, color_hl,
                  urgent, underline, overline):
         super().__init__()
+        object.__setattr__(self, 'uid', uid)
+
         self.text = text
         self.color_fg = color_fg
         self.color_bg = color_bg
@@ -75,12 +83,42 @@ class CutContainer(object):
         self.underline = underline
         self.overline = overline
 
-        self.order = order
-        self.__uid = uid
+        self.__formatted = text
+        self.__needs_refresh = True
 
-    @property
-    def uid(self):
-        return self.__uid
+    def __setattr__(self, name, value):
+        if name == 'uid':
+            raise AttributeError("'{}' object attribute 'uid' is read-only"
+                                 .format(type(self).__name__))
+        if name in CutContainer.HOOKS:
+            self.__needs_refresh = True
+
+        super().__setattr__(name, value)
+
+    def formatted(self):
+        if self.__needs_refresh:
+            if self.urgent:
+                fg = COLOR_WHITE
+                bg = COLOR_RED
+            else:
+                fg = self.color_fg
+                bg = self.color_bg
+
+            if self.underline or self.overline:
+                attren = ''.join(['%{',
+                                  '+' if self.underline else '-', 'u}%{',
+                                  '+' if self.overline else '-', 'o}'])
+                attrdis = "%{-u}%{-o}"
+            else:
+                attren = ""
+                attrdis = ""
+
+            opts = {'text': self.text, 'fg': fg, 'bg': bg, 'hl': self.color_hl,
+                    'attren': attren, 'attrdis': attrdis}
+            self.__formatted = CutContainer.FMT.format(**opts)
+            self.__needs_refresh = False
+
+        return self.__formatted
 
 
 class Slice(object):
@@ -88,76 +126,80 @@ class Slice(object):
                  color_hl=COLOR_WHITE, align=ALIGN_LEFT,
                  overline=False, underline=False):
         super().__init__()
-        self._align = align
+        self.align = align
+        self.cuts = {}
+
         self._color_fg = SliceColor(color_fg)
         self._color_bg = SliceColor(color_bg)
         self._color_hl = SliceColor(color_hl)
+        self._underline = underline
+        self._overline = overline
 
-        self._cuts = []
         self._manager = None
 
-    @property
-    def align(self):
-        return self._align
-
-    @property
-    def cuts(self):
-        return self._cuts
-
     def _add_cut(self, uid, text, fg=None, bg=None, hl=None,
-                 under=False, over=False, order=None, index=None):
-        if index is not None and order is not None:
-            raise ValueError("only order or index may be specified, not both")
-
-        if order is not None:
-            index = 0
-            for i, c in enumerate(self._cuts):
-                if c.order > order:
-                    index = i
-                    break
+                 urgent=False, under=None, over=None, index=None):
         if index is None:
-            index = len(self._cuts)
+            index = uid
         if fg is None:
             fg = self._color_fg
         if bg is None:
             bg = self._color_bg
         if hl is None:
             hl = self._color_hl
+        if under is None:
+            under = self._underline
+        if over is None:
+            over = self._overline
 
-        text = " " + text.strip() + " "
-        cut = CutContainer(uid, text, order, fg, bg, hl, False, under, over)
-        self._cuts.insert(index, cut)
+        text = ' ' + text.strip() + ' '
+        cut = CutContainer(uid, text, fg, bg, hl, urgent, under, over)
+        self.cuts[index] = cut
 
     def _get_cut(self, uid):
-        for c in self._cuts:
-            if c.uid == uid:
-                return c
+        return self.cuts[uid]
 
-        raise IndexError("cannot find cut with uid '{}'"
-                         .format(uid))
+    def _del_cut(self, uid):
+        del self.cuts[uid]
 
-    def _del_cut(self, **kwargs):
-        if 'uid' in kwargs:
-            self._cuts.remove(self._get_cut(kwargs['uid']))
-        else:
-            index = len(self._cuts) - 1
-            if 'index' in kwargs and isinstance(kwargs['index'], int):
-                index = kwargs['index']
-            self._cuts.pop(index)
+    def _update_cut(self, uid, text=None, fg=None, bg=None, hl=None,
+                    urgent=None, under=None, over=None):
+        cut = self.cuts[uid]
+        if text is not None:
+            cut.text = ' ' + text.strip() + ' '
+        if fg is not None:
+            cut.color_fg = fg
+        if bg is not None:
+            cut.color_bg = bg
+        if hl is not None:
+            cut.color_hl = hl
 
-    def _update_cut(self, text, **kwargs):
-        if 'uid' in kwargs:
-            c = self._get_cut(kwargs['uid'])
-            c.text = ' ' + text + ' '
-        else:
-            index = 0
-            if 'index' in kwargs and isinstance(kwargs['index'], int):
-                index = kwargs['index']
-            self._cuts[index].text = ' ' + text + ' '
+        if urgent is not None:
+            cut.urgent = urgent
+        if under is not None:
+            cut.underline = under
+        if over is not None:
+            cut.overline = over
+
+    def _stop_on_exception(self, message=None):
+        if message is not None:
+            sys.stderr.write(str(message) + "\n")
+
+        traceback.print_exc(file=sys.stderr)
+        sys.stderr.flush()
+
+        if (self._manager is not None and
+                self._manager.is_running):
+            self._manager.stop()
 
     def initialize(self, manager):
         self._manager = manager
         self.update()
+
+    def propagate(self):
+        if (self._manager is not None and
+                self._manager.is_running):
+            self._manager.update()
 
     def update(self):
         raise NotImplementedError("update() needs to be implemented by {}"
@@ -175,13 +217,12 @@ class IntervalSlice(Slice):
 
     def initialize(self, manager):
         self.__timeout_id = GLib.timeout_add_seconds(self.__interval,
-                                                     self.timeout)
+                                                     self._timeout)
         super().initialize(manager)
 
-    def timeout(self):
+    def _timeout(self):
         self.update()
-        if self._manager is not None:
-            self._manager.update()
+        self.propagate()
 
         return True
 
@@ -190,9 +231,8 @@ class SignaleSlice(Slice):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def signal(self, *args, **kwargs):
+    def _signal(self, *args, **kwargs):
         self.update()
-        if self._manager is not None:
-            self._manager.update()
+        self.propagate()
 
         return True

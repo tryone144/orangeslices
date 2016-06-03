@@ -10,8 +10,8 @@ from orangeslices import slice
 class Separator(slice.Slice):
     def __init__(self, char=' ', width=1, **kwargs):
         super().__init__(**kwargs)
-        self._add_cut(self.__class__.__name__, "")
-        self._cuts[0].text = char * width
+        self._add_cut(0, "")
+        self.cuts[0].text = char * width
 
     def update(self):
         pass
