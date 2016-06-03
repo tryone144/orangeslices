@@ -10,6 +10,7 @@ import orangeslices as osl
 def main():
     # Create Orange object: handles all slices and runs lemonbar
     args = "-f 'Source Code Pro for Powerline-9' -f 'Ionicons-12'"
+    args += " -u 3"
     orange = osl.Orange(lemonbar_args=args)
 
     # Clock slice: display current time
@@ -27,7 +28,8 @@ def main():
                                  color_bg="#944B",
                                  runtype=osl.TYPE_PERIODIC,
                                  interval=2,
-                                 align=osl.ALIGN_CENTER)
+                                 align=osl.ALIGN_CENTER,
+                                 underline=True)
 
     # Add slices to Orange
     orange.add(clock)
