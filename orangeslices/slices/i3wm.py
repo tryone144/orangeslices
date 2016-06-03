@@ -11,7 +11,7 @@ from time import sleep
 
 from orangeslices import slice
 
-RE_WS_TITLE = re.compile('^\s*([0-9]*)(:)?\s*(.*)\s*$', re.I)
+RE_WS_TITLE = re.compile('^\s*([0-9]*)(:)?\s*(.*)?\s*$', re.I)
 
 
 def i3_connection(callback):
@@ -67,7 +67,7 @@ class I3(slice.Slice):
             if old_ws is not None:
                 self._update_ws(old_ws.name, False)
         elif event.change == 'init':
-            self._add_ws(ws.name)
+            self._add_ws(ws.name, ws.num)
         elif event.change == 'empty':
             self._del_ws(ws.name)
         elif event.change == 'urgent':
@@ -82,14 +82,14 @@ class I3(slice.Slice):
         self._cuts.clear()
         i3 = i3ipc.Connection()
         for ws in i3.get_workspaces():
-            self._add_ws(ws.name, ws.focused)
+            self._add_ws(ws.name, ws.num, ws.focused)
 
-    def _add_ws(self, name, focused=False):
-        index, title = self.__strip_name(name)
+    def _add_ws(self, name, order, focused=False):
+        _, title = self.__strip_name(name)
         color_fg = self._color_fg_focused if focused else self._color_fg
         color_bg = self._color_bg_focused if focused else self._color_bg
 
-        self._add_cut(name, title, fg=color_fg, bg=color_bg, index=index)
+        self._add_cut(name, title, fg=color_fg, bg=color_bg, order=order)
 
     def _update_ws(self, name, focused=False, urgent=False):
         _, title = self.__strip_name(name)
@@ -123,7 +123,7 @@ class I3(slice.Slice):
         except:
             index = None
 
-        if title is None:
+        if title == "":
             title = str(index)
 
         return index, title

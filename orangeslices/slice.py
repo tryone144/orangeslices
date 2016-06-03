@@ -64,7 +64,7 @@ ALIGN_RIGHT = SliceAlignment.ALIGN_RIGHT
 
 
 class CutContainer(object):
-    def __init__(self, uid, text, color_fg, color_bg, color_hl,
+    def __init__(self, uid, text, order, color_fg, color_bg, color_hl,
                  urgent, underline, overline):
         super().__init__()
         self.text = text
@@ -75,6 +75,7 @@ class CutContainer(object):
         self.underline = underline
         self.overline = overline
 
+        self.order = order
         self.__uid = uid
 
     @property
@@ -104,7 +105,16 @@ class Slice(object):
         return self._cuts
 
     def _add_cut(self, uid, text, fg=None, bg=None, hl=None,
-                 under=False, over=False, index=None):
+                 under=False, over=False, order=None, index=None):
+        if index is not None and order is not None:
+            raise ValueError("only order or index may be specified, not both")
+
+        if order is not None:
+            index = 0
+            for i, c in enumerate(self._cuts):
+                if c.order > order:
+                    index = i
+                    break
         if index is None:
             index = len(self._cuts)
         if fg is None:
@@ -115,7 +125,7 @@ class Slice(object):
             hl = self._color_hl
 
         text = " " + text.strip() + " "
-        cut = CutContainer(uid, text, fg, bg, hl, False, under, over)
+        cut = CutContainer(uid, text, order, fg, bg, hl, False, under, over)
         self._cuts.insert(index, cut)
 
     def _get_cut(self, uid):
