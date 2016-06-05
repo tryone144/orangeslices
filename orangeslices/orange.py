@@ -9,6 +9,10 @@ from gi.repository import GObject, GLib
 import shlex
 import subprocess
 import sys
+import os
+import xcffib as xcb
+from xcffib import randr
+
 # LemonBar ignoring fast input: See https://github.com/LemonBoy/bar/issues/107
 from time import time
 
@@ -62,11 +66,39 @@ class Orange(GObject.GObject):
         self.__loop = GLib.MainLoop()
         GLib.threads_init()
 
-    def __render(self, sl):
+        # get number of active X11 outputs
+        X11_DISPLAY = os.environ['DISPLAY']
+        if X11_DISPLAY is None or len(X11_DISPLAY) == 0:
+            raise ValueError("'DISPLAY' variable not set")
+
+        self.__outputs = self.__get_outputs(X11_DISPLAY)
+        if len(self.__outputs) == 0:
+            raise RuntimeError("Cannot find any X11 outputs")
+
+    def __get_outputs(self, display):
+        outputs = []
+
+        conn = xcb.connect(display=display)
+        ext = conn(randr.key)
+        screen = conn.get_setup().roots[0]
+
+        info = ext.GetScreenResourcesCurrent(screen.root).reply()
+        for output in info.outputs:
+            info = ext.GetOutputInfo(output, xcb.CurrentTime).reply()
+            if (info.crtc != xcb.XCB_NONE and
+                    info.connection == randr.Connection.Connected):
+                outputs.append(slice.ScreenNumber.from_index(len(outputs)))
+
+        return outputs
+
+    def __render(self, sl, screen):
         slice_output = ""
         first_cut = True
 
         for _, cut in sorted(sl.cuts.items()):
+            if not cut.screen.value & screen:
+                continue
+
             if not first_cut:
                 slice_output += "%{F#FFFFFFFF}%{B#FF000000}|"
             else:
@@ -76,17 +108,22 @@ class Orange(GObject.GObject):
 
         return slice_output
 
-    def __draw(self):
+    def __draw(self, number, screen):
         output = {AL_LEFT: [],
                   AL_CENTER: [],
                   AL_RIGHT: []}
 
         for sl in self._slices:
-            output[sl.align].append(self.__render(sl))
+            if not sl.screen.value & screen:
+                continue
+
+            output[sl.align].append(self.__render(sl, screen))
 
         left = ''.join(output[AL_LEFT])
         center = ''.join(output[AL_CENTER])
         right = ''.join(output[AL_RIGHT])
+
+        self.__write("%{S" + str(number) + "}")
 
         if len(left) > 0:
             self.__write("%{l}")
@@ -99,24 +136,25 @@ class Orange(GObject.GObject):
             self.__write(right)
 
         self.__write(COLOR_RESET + ATTR_RESET)
-        self.__write('\n')
-        self.__outstream.flush()
-
-        self.__last_draw = time()
-        return True
 
     def __write(self, string):
         self.__outstream.write(string)
-        # sys.stdout.write(string)
-
-    def do_update(self, *args):
-        """signal handler for the 'update' event"""
-        self.__draw()
+        sys.stdout.write(string)
 
     def add(self, sl):
         """add slice to output"""
         self._slices.append(sl)
         sl.initialize(self)
+
+    def do_update(self, *args):
+        """signal handler for the 'update' event"""
+        for i, screen in enumerate(self.__outputs):
+            self.__draw(i, screen.value)
+
+        self.__write('\n')
+        self.__outstream.flush()
+
+        self.__last_draw = time()
 
     def update(self):
         if (self.__bar_exec is not None and
@@ -126,6 +164,7 @@ class Orange(GObject.GObject):
             self.__loop.quit()
             return
 
+        # self.emit('update', 0)
         # HACK: LemonBar too slow
         now = time()
         if now - self.__last_draw < 0.1:

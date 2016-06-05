@@ -65,13 +65,51 @@ ALIGN_CENTER = SliceAlignment.ALIGN_CENTER
 ALIGN_RIGHT = SliceAlignment.ALIGN_RIGHT
 
 
+class ScreenNumber(Enum):
+    SCREEN_FIRST = 1 << 0
+    SCREEN_SECOND = 1 << 1
+    SCREEN_THIRD = 1 << 2
+    SCREEN_FOURTH = 1 << 3
+    SCREEN_FIFTH = 1 << 4
+    SCREEN_SIXTH = 1 << 5
+    SCREEN_SEVENTH = 1 << 6
+    SCREEN_EIGHTH = 1 << 7
+    SCREEN_NINTH = 1 << 8
+    SCREEN_ALL = 0x01FF
+
+    @classmethod
+    def from_index(cls, index):
+        if index == 0:
+            return cls.SCREEN_FIRST
+        elif index == 1:
+            return cls.SCREEN_SECOND
+        elif index == 2:
+            return cls.SCREEN_THIRD
+        elif index == 3:
+            return cls.SCREEN_FOURTH
+        elif index == 4:
+            return cls.SCREEN_FIFTH
+        elif index == 5:
+            return cls.SCREEN_SIXTH
+        elif index == 6:
+            return cls.SCREEN_SEVENTH
+        elif index == 7:
+            return cls.SCREEN_EIGHTH
+        elif index == 8:
+            return cls.SCREEN_NINTH
+        else:
+            return cls.SCREEN_ALL
+
+SCREEN_ALL = ScreenNumber.SCREEN_ALL
+
+
 class CutContainer(object):
     FMT = "%{{F{fg:s}}}%{{B{bg:s}}}%{{U{hl:s}}}{attren:s}{text:s}{attrdis:s}"
     HOOKS = ('text', 'color_fg', 'color_bg', 'color_hl',
              'urgent', 'underline', 'overline')
 
     def __init__(self, uid, text, color_fg, color_bg, color_hl,
-                 urgent, underline, overline):
+                 urgent, underline, overline, screen):
         super().__init__()
         object.__setattr__(self, 'uid', uid)
 
@@ -82,6 +120,7 @@ class CutContainer(object):
         self.urgent = urgent
         self.underline = underline
         self.overline = overline
+        self.screen = screen
 
         self.__formatted = text
         self.__needs_refresh = True
@@ -124,9 +163,10 @@ class CutContainer(object):
 class Slice(object):
     def __init__(self, color_fg=COLOR_WHITE, color_bg=COLOR_BLACK,
                  color_hl=COLOR_WHITE, align=ALIGN_LEFT,
-                 overline=False, underline=False):
+                 overline=False, underline=False, screen=SCREEN_ALL):
         super().__init__()
         self.align = align
+        self.screen = screen
         self.cuts = {}
 
         self._color_fg = SliceColor(color_fg)
@@ -138,7 +178,7 @@ class Slice(object):
         self._manager = None
 
     def _add_cut(self, uid, text, fg=None, bg=None, hl=None,
-                 urgent=False, under=None, over=None, index=None):
+                 urgent=False, under=None, over=None, screen=None, index=None):
         if index is None:
             index = uid
         if fg is None:
@@ -147,13 +187,17 @@ class Slice(object):
             bg = self._color_bg
         if hl is None:
             hl = self._color_hl
+
         if under is None:
             under = self._underline
         if over is None:
             over = self._overline
 
+        if screen is None:
+            screen = self.screen
+
         text = ' ' + text.strip() + ' '
-        cut = CutContainer(uid, text, fg, bg, hl, urgent, under, over)
+        cut = CutContainer(uid, text, fg, bg, hl, urgent, under, over, screen)
         self.cuts[index] = cut
 
     def _get_cut(self, uid):
@@ -163,8 +207,9 @@ class Slice(object):
         self.cuts.pop(uid)
 
     def _update_cut(self, uid, text=None, fg=None, bg=None, hl=None,
-                    urgent=None, under=None, over=None):
+                    urgent=None, under=None, over=None, screen=None):
         cut = self.cuts[uid]
+
         if text is not None:
             cut.text = ' ' + text.strip() + ' '
         if fg is not None:
@@ -180,6 +225,9 @@ class Slice(object):
             cut.underline = under
         if over is not None:
             cut.overline = over
+
+        if screen is not None:
+            cut.screen = screen
 
     def _stop_on_exception(self, message=None):
         if message is not None:

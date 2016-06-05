@@ -34,6 +34,7 @@ def main():
                                  runtype=osl.TYPE_PERIODIC,
                                  interval=2,
                                  align=osl.ALIGN_CENTER,
+                                 screen=osl.SCREEN_SECOND,
                                  underline=True)
 
     # Add slices to Orange
