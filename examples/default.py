@@ -9,9 +9,14 @@ import orangeslices as osl
 
 def main():
     # Create Orange object: handles all slices and runs lemonbar
-    args = "-f 'Source Code Pro for Powerline-9' -f 'Ionicons-12'"
-    args += " -u 3"
-    orange = osl.Orange(lemonbar_args=args)
+    exe = "lemonbar"
+    # exe = "/home/bernd/proj/development/lemonbar/lemonbar"
+    args = []
+    args += ['-f', 'Source Code Pro for Powerline-9', '-f', 'Ionicons-12']
+    # args += ['-f', '-*-terminesspowerline-medium-r-normal-*-12-*-*-*-*-*-iso10646-1']
+    # args += ['-f', '-*-ionicons-medium-r-normal-*-13-*-*-*-*-*-iso10646-1']
+    args += ['-u', '3']
+    orange = osl.Orange(lemonbar_exec=exe, lemonbar_args=args)
 
     # Clock slice: display current time
     clock = osl.slices.Clock(color_fg="#FF02F3DD",

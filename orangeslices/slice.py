@@ -160,7 +160,7 @@ class Slice(object):
         return self.cuts[uid]
 
     def _del_cut(self, uid):
-        del self.cuts[uid]
+        self.cuts.pop(uid)
 
     def _update_cut(self, uid, text=None, fg=None, bg=None, hl=None,
                     urgent=None, under=None, over=None):

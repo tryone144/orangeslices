@@ -5,7 +5,7 @@
 #
 
 from enum import Enum
-from gi.repository import GLib
+from gi.repository import GObject, GLib
 import shlex
 import subprocess
 import sys
@@ -35,7 +35,11 @@ BLOCKS = OrangeStyle.STYLE_BLOCKS
 POWERLINE = OrangeStyle.STYLE_POWERLINE
 
 
-class Orange(object):
+class Orange(GObject.GObject):
+    __gsignals__ = {
+            'update': (GObject.SIGNAL_RUN_FIRST, None, (int, ))
+            }
+
     def __init__(self, style=BLOCKS, lemonbar_exec=LEMONBAR_EXEC,
                  lemonbar_args=LEMONBAR_ARGS):
         super().__init__()
@@ -97,7 +101,11 @@ class Orange(object):
 
     def __write(self, string):
         self.__outstream.write(string)
-        sys.stdout.write(string)
+        # sys.stdout.write(string)
+
+    def do_update(self, *args):
+        """signal handler for the 'update' event"""
+        self.__draw()
 
     def add(self, sl):
         """add slice to output"""
@@ -112,7 +120,7 @@ class Orange(object):
             self.__loop.quit()
             return
 
-        self.__draw()
+        self.emit('update', 0)
 
     def run(self):
         """start lemonbar and generate statusline"""

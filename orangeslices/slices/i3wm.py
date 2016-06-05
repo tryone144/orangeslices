@@ -37,7 +37,7 @@ def i3_connection(callback, on_error):
             raise RuntimeError("cannot (re)connect to i3 ipc socket")
 
         def ws_changed(i3, event):
-            callback(event)
+            callback(i3, event)
 
         i3.on('workspace', ws_changed)
         i3.on('ipc-shutdown', restart)
@@ -74,14 +74,15 @@ class I3(slice.Slice):
 
         self.propagate()
 
-    def _signal(self, event):
+    def _signal(self, conn, event):
         ws = event.current
         old_ws = event.old
 
         if event.change == 'focus':
             self._update_ws(ws.name, ws.num, True)
             if old_ws is not None:
-                self._update_ws(old_ws.name, old_ws.num, False)
+                if conn.get_tree().find_by_id(old_ws.id) is not None:
+                    self._update_ws(old_ws.name, old_ws.num, False)
         elif event.change == 'init':
             self._add_ws(ws.name, ws.num)
         elif event.change == 'empty':
