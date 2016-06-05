@@ -33,6 +33,31 @@ See the [Examples](./examples) for a basic overview of the procedure. Or take a 
 [`orangeslices`](./orangeslices) and [`orangeslices.slices`](./orangeslices/slices) API documentation.
 
 
+## Installation
+
+Clone this repo
+
+```bash
+$ git clone https://github.com/tryone144/orangeslices
+```
+
+and install with
+
+```bash
+$ make
+$ make install
+```
+
+or with `setuptools`
+
+```bash
+$ ./setup.py build
+$ ./setup.py install
+```
+
+Installation may require root privileges.
+
+
 ## Examples
 
 __# TODO__
@@ -42,7 +67,7 @@ __# TODO__
 
 - Add click handler to the slices
 
-- Add multimonitor support
+- Build and upload PyPi package
 
 - Improve documentation
 
