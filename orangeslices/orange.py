@@ -9,6 +9,8 @@ from gi.repository import GObject, GLib
 import shlex
 import subprocess
 import sys
+# LemonBar ignoring fast input: See https://github.com/LemonBoy/bar/issues/107
+from time import time
 
 from . import slice
 
@@ -54,6 +56,9 @@ class Orange(GObject.GObject):
         self.__started = False
         self.__bar_exec = None
 
+        # HACK: LemonBar to slow
+        self.__last_draw = 0
+
         self.__loop = GLib.MainLoop()
         GLib.threads_init()
 
@@ -97,6 +102,7 @@ class Orange(GObject.GObject):
         self.__write('\n')
         self.__outstream.flush()
 
+        self.__last_draw = time()
         return True
 
     def __write(self, string):
@@ -120,7 +126,14 @@ class Orange(GObject.GObject):
             self.__loop.quit()
             return
 
-        self.emit('update', 0)
+        # HACK: LemonBar too slow
+        now = time()
+        if now - self.__last_draw < 0.1:
+            GLib.timeout_add(100, self.update)
+            return False
+        else:
+            self.emit('update', 0)
+            return False
 
     def run(self):
         """start lemonbar and generate statusline"""
