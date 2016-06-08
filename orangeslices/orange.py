@@ -13,10 +13,12 @@ import os
 import xcffib as xcb
 from xcffib import randr
 
-# LemonBar ignoring fast input: See https://github.com/LemonBoy/bar/issues/107
-from time import time
-
 from . import slice
+
+# LemonBar ignoring fast input: See https://github.com/LemonBoy/bar/issues/107
+HACK_107 = True
+if HACK_107:
+    from time import time
 
 AL_LEFT = slice.ALIGN_LEFT
 AL_CENTER = slice.ALIGN_CENTER
@@ -61,7 +63,8 @@ class Orange(GObject.GObject):
         self.__bar_exec = None
 
         # HACK: LemonBar to slow
-        self.__last_draw = 0
+        if HACK_107:
+            self.__last_draw = 0
 
         self.__loop = GLib.MainLoop()
         GLib.threads_init()
@@ -154,7 +157,9 @@ class Orange(GObject.GObject):
         self.__write('\n')
         self.__outstream.flush()
 
-        self.__last_draw = time()
+        # HACK: LemonBar too slow
+        if HACK_107:
+            self.__last_draw = time()
 
     def update(self):
         if (self.__bar_exec is not None and
@@ -164,15 +169,17 @@ class Orange(GObject.GObject):
             self.__loop.quit()
             return
 
-        # self.emit('update', 0)
         # HACK: LemonBar too slow
-        now = time()
-        if now - self.__last_draw < 0.1:
-            GLib.timeout_add(100, self.update)
-            return False
+        if HACK_107:
+            now = time()
+            if now - self.__last_draw < 0.1:
+                GLib.timeout_add(100, self.update)
+                return False
+            else:
+                self.emit('update', 0)
+                return False
         else:
             self.emit('update', 0)
-            return False
 
     def run(self):
         """start lemonbar and generate statusline"""
