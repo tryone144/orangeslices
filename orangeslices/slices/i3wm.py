@@ -143,7 +143,7 @@ class I3(slice.Slice):
             if o.num == number:
                 return self.__outputs[o.output]
 
-        return slice.ALL_SCREENS
+        return slice.SCREEN_ALL
 
     def __get_outputs(self):
         def position(output):
