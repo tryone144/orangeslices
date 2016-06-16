@@ -72,7 +72,8 @@ class I3(slice.Slice):
         self.cuts.clear()
         i3 = i3ipc.Connection()
         for ws in i3.get_workspaces():
-            self._add_ws(ws.name, ws.num, focused=ws.focused,
+            number, _ = self.__strip_name(ws.name)
+            self._add_ws(ws.name, index=number, focused=ws.focused,
                          output=self.__outputs[ws.output])
 
         self.propagate()
@@ -82,36 +83,37 @@ class I3(slice.Slice):
         old_ws = event.old
 
         if event.change == 'focus':
-            self._update_ws(ws.name, ws.num, focused=True)
+            self._update_ws(ws.name, focused=True)
             if old_ws is not None:
                 if conn.get_tree().find_by_id(old_ws.id) is not None:
-                    self._update_ws(old_ws.name, old_ws.num, focused=False)
+                    self._update_ws(old_ws.name, focused=False)
         elif event.change == 'init':
-            self._add_ws(ws.name, ws.num,
-                         output=self.__get_output(conn, ws.num))
+            self._add_ws(ws.name, output=self.__get_output(conn, ws.name))
         elif event.change == 'empty':
-            self._del_ws(ws.name, ws.num)
+            self._del_ws(ws.name)
         elif event.change == 'move':
-            self._update_ws(ws.name, ws.num,
-                            output=self.__get_output(conn, ws.num))
+            self._update_ws(ws.name, output=self.__get_output(conn, ws.name))
         elif event.change == 'urgent':
-            self._update_ws(ws.name, ws.num, urgent=ws.urgent)
+            self._update_ws(ws.name, urgent=ws.urgent)
 
         self.propagate()
 
         return True
 
-    def _add_ws(self, name, number, output=None, focused=False):
-        title = self.__strip_name(name)
+    def _add_ws(self, name, index=None, output=None, focused=False):
+        number, title = self.__strip_name(name)
         color_fg = self._color_fg_focused if focused else self._color_fg
         color_bg = self._color_bg_focused if focused else self._color_bg
+
+        if index is not None:
+            number = index
 
         self._add_cut(name, title, fg=color_fg, bg=color_bg, index=number,
                       screen=output)
 
-    def _update_ws(self, name, number, focused=False, urgent=False,
+    def _update_ws(self, name, index=None, focused=False, urgent=False,
                    output=None):
-        title = self.__strip_name(name)
+        number, title = self.__strip_name(name)
 
         if focused:
             color_fg = self._color_fg_focused
@@ -120,10 +122,18 @@ class I3(slice.Slice):
             color_fg = self._color_fg
             color_bg = self._color_bg
 
+        if index is not None:
+            number = index
+
         self._update_cut(number, title, color_fg, color_bg, None, urgent,
                          screen=output)
 
-    def _del_ws(self, name, number):
+    def _del_ws(self, name, index=None):
+        if index is not None:
+            number = index
+        else:
+            number, _ = self.__strip_name(name)
+
         self._del_cut(number)
 
     def __strip_name(self, name):
@@ -133,15 +143,17 @@ class I3(slice.Slice):
             title = match.group(2)
             if len(title) == 0:
                 title = index if len(index) > 0 else name.strip()
+            index = int(index)
         else:
+            index = name.strip()
             title = name.strip()
 
-        return title
+        return index, title
 
-    def __get_output(self, conn, number):
-        for o in conn.get_workspaces():
-            if o.num == number:
-                return self.__outputs[o.output]
+    def __get_output(self, conn, name):
+        for ws in conn.get_workspaces():
+            if ws.name == name:
+                return self.__outputs[ws.output]
 
         return slice.SCREEN_ALL
 
