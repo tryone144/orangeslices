@@ -8,7 +8,6 @@ from enum import Enum
 from gi.repository import GLib
 import shlex
 import subprocess
-import sys
 import select
 from threading import Thread
 from collections import deque
@@ -29,7 +28,7 @@ PERSISTENT = CommandType.TYPE_PERSISTENT
 def popen_background(cmd, callback, on_error):
     try:
         proc_stderr = deque([], 15)
-        proc = subprocess.Popen(cmd, shell=True,
+        proc = subprocess.Popen(cmd, shell=False,
                                 universal_newlines=True,
                                 stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
@@ -43,8 +42,7 @@ def popen_background(cmd, callback, on_error):
         poll.register(proc.stderr, events)
 
         while proc.poll() is None:
-            result = poll.poll()
-            for fd, event in result:
+            for fd, event in poll.poll():
                 if event & select.POLLHUP and proc.poll() is None:
                     try:
                         _, stderr = proc.communicate(timeout=5)
@@ -60,8 +58,6 @@ def popen_background(cmd, callback, on_error):
         if proc.returncode != 0:
             raise subprocess.CalledProcessError(proc.returncode, ' '.join(cmd),
                                                 stderr='\n'.join(proc_stderr))
-
-        print("DONE")
     except:
         on_error("Backgroundprocess '" + ' '.join(cmd) + "' failed.")
 
@@ -110,7 +106,7 @@ class Command(slice.Slice):
         if self.__runtype != PERSISTENT:
             retval = subprocess.run(self.__cmd, check=True, shell=True,
                                     stdout=subprocess.PIPE,
-                                    stderr=sys.stderr,
+                                    stderr=subprocess.PIPE,
                                     universal_newlines=True)
             if retval.stdout is not None:
                 self.__update_text(retval.stdout.rstrip())

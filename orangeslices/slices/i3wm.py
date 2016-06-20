@@ -77,14 +77,26 @@ __connection__ = None
 
 
 class I3ws(slice.Slice):
-    def __init__(self, strip_title=True, color_fg_focused=slice.COLOR_BLACK,
-                 color_bg_focused=slice.COLOR_WHITE, **kwargs):
+    def __init__(self, strip_title=True, color_fg_focused=None,
+                 color_bg_focused=None, color_hl_focused=None,
+                 underline_focused=False, overline_focused=False, **kwargs):
         super().__init__(**kwargs)
 
         self.__strip_title = strip_title
 
         self._color_fg_focused = color_fg_focused
         self._color_bg_focused = color_bg_focused
+        self._color_hl_focused = color_hl_focused
+
+        if self._color_fg_focused is None:
+            self._color_fg_focused = self._color_fg
+        if self._color_bg_focused is None:
+            self._color_bg_focused = self._color_bg
+        if self._color_hl_focused is None:
+            self._color_hl_focused = self._color_hl
+
+        self._underline_focused = underline_focused
+        self._overline_focused = overline_focused
 
         self.__outputs = self.__get_outputs()
 
@@ -132,31 +144,26 @@ class I3ws(slice.Slice):
 
     def _add_ws(self, name, index=None, output=None, focused=False):
         number, title = self.__strip_name(name)
-        color_fg = self._color_fg_focused if focused else self._color_fg
-        color_bg = self._color_bg_focused if focused else self._color_bg
+        (color_fg, color_bg, color_hl,
+            under, over) = self.__get_attributes(focused)
 
         if index is not None:
             number = index
 
-        self._add_cut(name, title, fg=color_fg, bg=color_bg, index=number,
-                      screen=output)
+        self._add_cut(name, title, fg=color_fg, bg=color_bg, hl=color_hl,
+                      under=under, over=over, index=number, screen=output)
 
     def _update_ws(self, name, index=None, focused=False, urgent=False,
                    output=None):
         number, title = self.__strip_name(name)
-
-        if focused:
-            color_fg = self._color_fg_focused
-            color_bg = self._color_bg_focused
-        else:
-            color_fg = self._color_fg
-            color_bg = self._color_bg
+        (color_fg, color_bg, color_hl,
+            under, over) = self.__get_attributes(focused)
 
         if index is not None:
             number = index
 
-        self._update_cut(number, title, color_fg, color_bg, None, urgent,
-                         screen=output)
+        self._update_cut(number, title, fg=color_fg, bg=color_bg, hl=color_hl,
+                         under=under, over=over, urgent=urgent, screen=output)
 
     def _del_ws(self, name, index=None):
         if index is not None:
@@ -165,6 +172,20 @@ class I3ws(slice.Slice):
             number, _ = self.__strip_name(name)
 
         self._del_cut(number)
+
+    def __get_attributes(self, focused=False):
+        if focused:
+            return (self._color_fg_focused,
+                    self._color_bg_focused,
+                    self._color_hl_focused,
+                    self._underline_focused,
+                    self._overline_focused)
+        else:
+            return (self._color_fg,
+                    self._color_bg,
+                    self._color_hl,
+                    self._underline,
+                    self._overline)
 
     def __strip_name(self, name):
         if self.__strip_title:
@@ -240,7 +261,7 @@ class I3title(slice.Slice):
 
         if event.change == 'focus':
             if empty:
-                self.__update_title("")
+                self.cuts[0].text = ""
             elif win is not None:
                 self.__update_title(win.name)
         elif event.change == 'title':

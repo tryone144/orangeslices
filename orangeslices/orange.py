@@ -103,7 +103,7 @@ class Orange(GObject.GObject):
                 continue
 
             if not first_cut:
-                slice_output += "%{F#FFFFFFFF}%{B#FF000000}|"
+                slice_output += sl.default_format() + '|'
             else:
                 first_cut = False
 
@@ -141,8 +141,18 @@ class Orange(GObject.GObject):
         self.__write(COLOR_RESET + ATTR_RESET)
 
     def __write(self, string):
-        self.__outstream.write(string)
+        try:
+            self.__outstream.write(string)
+        except BrokenPipeError:
+            pass
         sys.stdout.write(string)
+
+    def __flush(self):
+        try:
+            self.__outstream.flush()
+        except BrokenPipeError:
+            pass
+        sys.stdout.flush()
 
     def add(self, sl):
         """add slice to output"""
@@ -155,7 +165,7 @@ class Orange(GObject.GObject):
             self.__draw(i, screen.value)
 
         self.__write('\n')
-        self.__outstream.flush()
+        self.__flush()
 
         # HACK: LemonBar too slow
         if HACK_107:
@@ -166,7 +176,7 @@ class Orange(GObject.GObject):
                 self.__bar_exec.poll() is not None):
             sys.stderr.write("lemonbar terminated, quitting...\n")
             sys.stderr.flush()
-            self.__loop.quit()
+            self.stop()
             return
 
         # HACK: LemonBar too slow
@@ -215,9 +225,14 @@ class Orange(GObject.GObject):
 
     def __cleanup(self):
         if self.__started and self.is_running:
+            self.is_running = False
+
             # stop lemonbar
-            self.__bar_exec.terminate()
             try:
-                self.__bar_exec.wait(10)
-            except subprocess.TimeoutExpired:
-                self.__bar_exec.kill()
+                self.__bar_exec.terminate()
+                try:
+                    self.__bar_exec.wait(10)
+                except subprocess.TimeoutExpired:
+                    self.__bar_exec.kill()
+            except ProcessLookupError:
+                pass

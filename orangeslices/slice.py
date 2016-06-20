@@ -139,9 +139,11 @@ class CutContainer(object):
             if self.urgent:
                 fg = COLOR_WHITE
                 bg = COLOR_RED
+                hl = COLOR_WHITE
             else:
                 fg = self.color_fg
                 bg = self.color_bg
+                hl = self.color_hl
 
             if self.underline or self.overline:
                 attren = ''.join(['%{',
@@ -152,7 +154,7 @@ class CutContainer(object):
                 attren = ""
                 attrdis = ""
 
-            opts = {'text': self.text, 'fg': fg, 'bg': bg, 'hl': self.color_hl,
+            opts = {'text': self.text, 'fg': fg, 'bg': bg, 'hl': hl,
                     'attren': attren, 'attrdis': attrdis}
             self.__formatted = CutContainer.FMT.format(**opts)
             self.__needs_refresh = False
@@ -161,6 +163,8 @@ class CutContainer(object):
 
 
 class Slice(object):
+    DEFAULT_FMT = "%{{F{fg:s}}}%{{B{bg:s}}}%{{U{hl:s}}}"
+
     def __init__(self, color_fg=COLOR_WHITE, color_bg=COLOR_BLACK,
                  color_hl=COLOR_WHITE, align=ALIGN_LEFT,
                  overline=False, underline=False, screen=SCREEN_ALL):
@@ -176,6 +180,10 @@ class Slice(object):
         self._overline = overline
 
         self._manager = None
+
+        self.__default_formatted = Slice.DEFAULT_FMT.format(fg=self._color_fg,
+                                                            bg=self._color_bg,
+                                                            hl=self._color_hl)
 
     def _add_cut(self, uid, text, fg=None, bg=None, hl=None,
                  urgent=False, under=None, over=None, screen=None, index=None):
@@ -248,6 +256,9 @@ class Slice(object):
         if (self._manager is not None and
                 self._manager.is_running):
             self._manager.update()
+
+    def default_format(self):
+        return self.__default_formatted
 
     def update(self):
         raise NotImplementedError("update() needs to be implemented by {}"

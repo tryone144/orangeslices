@@ -26,22 +26,29 @@ def main():
     separator = osl.slices.Separator('|')
 
     # i3wm slice: display current workspace status
-    i3 = osl.slices.I3(strip_title=True)
+    i3ws = osl.slices.I3ws(strip_title=True)
+    i3title = osl.slices.I3title(maxlen=20, align=osl.ALIGN_RIGHT)
 
     # Command slice: display output of executable
-    command = osl.slices.Command(executable="date",
-                                 color_bg="#944B",
-                                 runtype=osl.TYPE_PERIODIC,
-                                 interval=2,
-                                 align=osl.ALIGN_CENTER,
-                                 screen=osl.SCREEN_SECOND,
-                                 underline=True)
+    command1 = osl.slices.Command(executable="xtitle",
+                                  args='-s',
+                                  runtype=osl.TYPE_PERSISTENT)
+    command2 = osl.slices.Command(executable="date",
+                                  color_bg="#944B",
+                                  runtype=osl.TYPE_PERIODIC,
+                                  interval=2,
+                                  align=osl.ALIGN_CENTER,
+                                  screen=osl.SCREEN_SECOND,
+                                  underline=True)
 
     # Add slices to Orange
     orange.add(clock)
     orange.add(separator)
-    orange.add(i3)
-    orange.add(command)
+    orange.add(i3ws)
+    orange.add(separator)
+    orange.add(command1)
+    orange.add(command2)
+    orange.add(i3title)
 
     # Start lemonbar and display output of slices
     orange.run()
