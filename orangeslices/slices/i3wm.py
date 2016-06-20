@@ -14,40 +14,69 @@ from orangeslices import slice
 RE_WS_TITLE = re.compile('\s*([0-9]*):?\s*(.*)?\s*', re.I)
 
 
-def i3_connection(callback, on_error):
-    try:
-        i3 = i3ipc.Connection()
+class i3_connection(Thread):
+    def __init__(self, on_error):
+        super().__init__(daemon=True)
+        self._on_error = on_error
+        self._ws_callback = lambda c, e: True
+        self._title_callback = lambda c, e: True
 
-        def restart(i3):
+        self.conn = None
+
+    def register_workspace_callback(self, callback):
+        if callback is not None:
+            self._ws_callback = callback
+        else:
+            self._ws_callback = lambda c, e: True
+
+    def register_title_callback(self, callback):
+        if callback is not None:
+            self._title_callback = callback
+        else:
+            self._title_callback = lambda c, e: True
+
+    def __ws_changed(self, conn, event):
+        if event.change in ('focus', 'init', 'empty', 'urgent'):
+            self._ws_callback(conn, event)
+        if event.change == 'focus':
+            self._title_callback(conn, event)
+
+    def __title_changed(self, conn, event):
+        if event.change in ('focus', 'close', 'move', 'title'):
+            self._title_callback(conn, event)
+
+    def restart(self, conn):
+        conn.main_quit()
+
+        for _ in range(3):
             try:
-                i3.get_version()
-            except BrokenPipeError:
-                print("DO I3 RECONNECT: BROKEN PIPE")
-                i3 = i3ipc.Connection()
+                self.conn = i3ipc.Connection()
+                break
+            except FileNotFoundError:
+                sleep(0.5)
 
-            count = 0
-            while count < 3:
-                count += 1
-                try:
-                    i3.main()
-                    return
-                except FileNotFoundError:
-                    sleep(0.5)
+        self.conn.on('window', self.__title_changed)
+        self.conn.on('workspace', self.__ws_changed)
+        self.conn.on('ipc-shutdown', self.restart)
 
-            raise RuntimeError("cannot (re)connect to i3 ipc socket")
+        self.conn.main()
 
-        def ws_changed(i3, event):
-            callback(i3, event)
+    def run(self):
+        try:
+            self.conn = i3ipc.Connection()
 
-        i3.on('workspace', ws_changed)
-        i3.on('ipc-shutdown', restart)
+            self.conn.on('workspace', self.__ws_changed)
+            self.conn.on('window', self.__title_changed)
+            self.conn.on('ipc-shutdown', self.restart)
 
-        restart(i3)
-    except:
-        on_error("Error in I3 communication")
+            self.conn.main()
+        except:
+            self._on_error("Error in I3 communication")
+
+__connection__ = None
 
 
-class I3(slice.Slice):
+class I3ws(slice.Slice):
     def __init__(self, strip_title=True, color_fg_focused=slice.COLOR_BLACK,
                  color_bg_focused=slice.COLOR_WHITE, **kwargs):
         super().__init__(**kwargs)
@@ -61,12 +90,13 @@ class I3(slice.Slice):
 
     def initialize(self, manager):
         super().initialize(manager)
+        global __connection__
 
-        arguments = {'callback': self._signal,
-                     'on_error': self._stop_on_exception}
-        self.__conn = Thread(target=i3_connection, name="i3-workspaces",
-                             kwargs=arguments, daemon=True)
-        self.__conn.start()
+        if __connection__ is None:
+            __connection__ = i3_connection(self._stop_on_exception)
+            __connection__.start()
+
+        __connection__.register_workspace_callback(self._signal)
 
     def update(self):
         self.cuts.clear()
@@ -169,3 +199,61 @@ class I3(slice.Slice):
             outputs[output.name] = slice.ScreenNumber.from_index(i)
 
         return outputs
+
+
+class I3title(slice.Slice):
+    def __init__(self, maxlen=None, ellipsis='', **kwargs):
+        super().__init__(**kwargs)
+
+        self.__maxlen = maxlen
+        self.__ellipsis = ellipsis
+
+    def initialize(self, manager):
+        super().initialize(manager)
+        global __connection__
+
+        if __connection__ is None:
+            __connection__ = i3_connection(self._stop_on_exception)
+            __connection__.start()
+
+        __connection__.register_title_callback(self._signal)
+
+    def update(self):
+        self.cuts.clear()
+        i3 = i3ipc.Connection()
+        name = i3.get_tree().find_focused().name
+        if self.__maxlen and len(name) > self.__maxlen:
+            self._add_cut(0, name[:self.__maxlen].rstrip() +
+                          self.__ellipsis)
+        else:
+            self._add_cut(0, name)
+
+        self.propagate()
+
+    def _signal(self, conn, event):
+        empty = False
+        win = None
+        try:
+            win = event.container
+        except AttributeError:
+            empty = (len(event.current.descendents()) == 0)
+
+        if event.change == 'focus':
+            if empty:
+                self.__update_title("")
+            elif win is not None:
+                self.__update_title(win.name)
+        elif event.change == 'title':
+            if win.focused:
+                self.__update_title(win.name)
+
+        self.propagate()
+
+        return True
+
+    def __update_title(self, text):
+        if self.__maxlen and len(text) > self.__maxlen:
+            self._update_cut(0, text[:self.__maxlen].rstrip() +
+                             self.__ellipsis)
+        else:
+            self._update_cut(0, text)
